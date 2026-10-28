@@ -1,5 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from typing import Dict, Any
 import os
 import torch
@@ -15,6 +15,63 @@ MODEL_REGISTRY: Dict[str, Any] = {}
 
 def _register_model(model_class):
     MODEL_REGISTRY[model_class.__name__] = model_class
+
+
+def is_peft_model(model):
+    try:
+        from peft import PeftModel
+
+        return isinstance(model, PeftModel)
+    except ImportError:
+        return False
+
+
+def apply_peft(model, peft_cfg):
+    peft_dict = OmegaConf.to_container(peft_cfg, resolve=True)
+    peft_type = peft_dict.pop("peft_type")
+    peft_dict.pop("curvLoRA_configs", None)
+    peft_dict.pop("curvDelta_configs", None)
+    oplora_k = peft_dict.pop("oplora_k", None)
+    oplora_niter = peft_dict.pop("oplora_niter", 4)
+
+    if peft_type == "crispedit":
+        # No adapter: CrispEdit updates base weights directly. Keep the target
+        # module names on the model so CrispEditTrainerMixin can resolve them.
+        model._crispedit_target_modules = list(peft_dict["target_modules"])
+        return model
+
+    if peft_type in {"lora", "curvLoRA", "oplora"}:
+        from peft import LoraConfig, get_peft_model
+
+        peft_config = LoraConfig(**peft_dict)
+        model = get_peft_model(model, peft_config)
+
+        if peft_type == "curvLoRA":
+            from model.curvLoRA import apply_curvLoRA
+
+            model = apply_curvLoRA(model)
+        elif peft_type == "oplora":
+            if oplora_k is None:
+                raise ValueError("peft_type oplora requires oplora_k")
+            from model.oplora import apply_oplora
+
+            model = apply_oplora(model, k=int(oplora_k), niter=int(oplora_niter))
+    elif peft_type in {"dense", "curvDelta"}:
+        from model.dense import DenseConfig, get_dense_model
+
+        peft_config = DenseConfig(**peft_dict)
+        if peft_type == "curvDelta":
+            from model.curvDelta import get_curvDelta_model
+
+            model = get_curvDelta_model(model, peft_config)
+        else:
+            model = get_dense_model(model, peft_config)
+    else:
+        raise ValueError(f"Unknown peft_type: {peft_type!r}")
+
+    model.enable_input_require_grads()
+    model.print_trainable_parameters()
+    return model
 
 
 def get_dtype(model_args):
@@ -38,7 +95,26 @@ def get_dtype(model_args):
     return torch.float32
 
 
-def get_model(model_cfg: DictConfig):
+def get_model(model_cfg: DictConfig, peft_cfg: DictConfig = None, is_trainable: bool = False):
+    """Load a (base, tokenizer) pair, optionally wrapped in a PEFT adapter.
+
+    Adapter selection:
+
+    1. ``model_cfg.peft_model_path`` set → load that adapter on top of the
+       base from ``model_args.pretrained_model_name_or_path``.
+    2. Otherwise if ``peft_cfg`` is not None → freshly wrap the base via
+       ``apply_peft`` (training-from-scratch path).
+    3. Otherwise → return the plain base model.
+
+    For VILA-init checkpoints produced by ``scripts/prepare_vila_init.py``
+    (layout: ``<vila_dir>/{adapter_config.json, base/}``), point
+    ``model_args.pretrained_model_name_or_path`` and ``tokenizer_args`` at
+    ``<vila_dir>/base`` and set ``model_cfg.peft_model_path=<vila_dir>``;
+    no special branch is needed here.
+
+    ``is_trainable`` is forwarded to ``PeftModel.from_pretrained`` so the
+    adapter is loaded with grad-tracking enabled at training time.
+    """
     assert model_cfg is not None and model_cfg.model_args is not None, ValueError(
         "Model config not found or model_args absent in configs/model."
     )
@@ -57,10 +133,24 @@ def get_model(model_cfg: DictConfig):
             cache_dir=hf_home,
         )
     except Exception as e:
-        logger.warning(f"Model {model_path} requested with {model_cfg.model_args}")
+        logger.warning(f"Model {model_path} requested with {model_args}")
         raise ValueError(
-            f"Error {e} while fetching model using {model_handler}.from_pretrained()."
+            f"Error {e} while fetching model using {model_cls.__name__}.from_pretrained()."
         )
+
+    peft_model_path = model_cfg.get("peft_model_path", None)
+    if peft_model_path is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(
+            model, peft_model_path, is_trainable=is_trainable
+        )
+        if is_trainable:
+            model.enable_input_require_grads()
+        logger.info(f"Loaded PEFT adapter from {peft_model_path}")
+    elif peft_cfg is not None:
+        model = apply_peft(model, peft_cfg)
+
     tokenizer = get_tokenizer(tokenizer_args)
     return model, tokenizer
 
@@ -98,6 +188,15 @@ def get_tokenizer(tokenizer_cfg: DictConfig):
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
         logger.info("Setting pad_token as eos token: {}".format(tokenizer.pad_token))
+
+    # Qwen3 flash attention requires left padding.
+    # Detect by checking for Qwen2Tokenizer (used by Qwen3-4B-Instruct-2507).
+    if "Qwen2Tokenizer" in type(tokenizer).__name__:
+        if tokenizer.padding_side != "left":
+            logger.info(
+                "Setting tokenizer.padding_side to 'left' (required by Qwen3 flash attention)"
+            )
+            tokenizer.padding_side = "left"
 
     return tokenizer
 

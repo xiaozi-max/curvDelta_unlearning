@@ -181,3 +181,20 @@ cython_debug/
 .idea/
 
 .vscode/
+
+# Local credentials and generated research artifacts
+.env.*
+!.env.example
+*.local
+credentials*
+*credentials.json
+*service-account*.json
+*.pem
+*.key
+.netrc
+.huggingface/
+.wandb/
+results/
+outputs/
+checkpoints/
+pytest-cache-files-*/

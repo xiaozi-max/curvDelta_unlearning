@@ -66,6 +66,39 @@ def load_trainer(
     assert trainer_cls is not None, NotImplementedError(
         f"{trainer_handler_name} not implemented or not registered"
     )
+    has_curvature = (
+        "curvLoRA_configs" in method_args
+        or "curvDelta_configs" in method_args
+    )
+    has_crispedit = "crispedit_configs" in method_args
+
+    has_oplora = getattr(model, "_oplora_k", None) is not None
+    if has_oplora and (has_curvature or has_crispedit):
+        raise ValueError(
+            "OPLoRA, curvLoRA, and CrispEdit are alternative parameterizations. "
+            "Specify only one of them."
+        )
+
+    if has_curvature and has_crispedit:
+        raise ValueError(
+            "CrispEdit cannot be combined with curvLoRA/curvDelta. "
+            "Specify only one curvature backend."
+        )
+
+    if has_curvature:
+        from trainer.curvature import CurvatureTrainerMixin
+
+        trainer_cls = type(
+            trainer_cls.__name__, (CurvatureTrainerMixin, trainer_cls), {}
+        )
+
+    if has_crispedit:
+        from trainer.crispedit import CrispEditTrainerMixin
+
+        trainer_cls = type(
+            trainer_cls.__name__, (CrispEditTrainerMixin, trainer_cls), {}
+        )
+
     trainer = trainer_cls(
         model=model,
         train_dataset=train_dataset,
@@ -77,6 +110,11 @@ def load_trainer(
         template_args=template_args,
         **method_args,
     )
+    if has_oplora:
+        from trainer.oplora import OPLoraCallback
+
+        trainer.add_callback(OPLoraCallback())
+
     logger.info(
         f"{trainer_handler_name} Trainer loaded, output_dir: {trainer_args.output_dir}"
     )

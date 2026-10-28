@@ -7,6 +7,11 @@ defaults:
   - hydra: default
   - paths: default
   - experiment: null
+  - optional /peft: null
+  - optional /curvLoRA: null
+  - optional /curvDelta: null
+  - optional /crispedit: null
+  - optional /lora_init: null
   - _self_
 
 trainer:

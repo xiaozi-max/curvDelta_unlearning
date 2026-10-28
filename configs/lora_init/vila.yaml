@@ -1,0 +1,15 @@
+# @package _global_
+lora_init:
+  handler: vila
+  # Output directory for the VILA preprocessing checkpoint
+  # (residual base + VILA-init adapter, written by scripts/prepare_vila_init.py).
+  path: ???
+  eps: 1.0e-5
+  # Per-rank renormalize B/A so their column/row norms match. Preserves B@A
+  # exactly and recovers comparable B/A scales for Adam.
+  rebalance: true
+  # Importance-computation hyperparameters (Phase 1 of prepare_vila_init.py).
+  sigma: 0.05
+  num_epochs: 10
+  max_steps: null  # cap per-epoch steps; null = use full epoch
+  batch_size: 16

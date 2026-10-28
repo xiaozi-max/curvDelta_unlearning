@@ -16,9 +16,10 @@ _EVAL_PLACEHOLDER = "_EVAL_PLACEHOLDER"
 
 
 class FinetuneTrainer(Trainer):
-    def __init__(self, evaluators=None, template_args=None, *args, **kwargs):
+    def __init__(self, evaluators=None, template_args=None, ref_model_path=None, *args, **kwargs):
         self.evaluators = evaluators
         self.template_args = template_args
+        self._ref_model_path = ref_model_path
         if kwargs.get("eval_dataset") is None and evaluators:
             kwargs["eval_dataset"] = _EVAL_PLACEHOLDER
         super().__init__(*args, **kwargs)

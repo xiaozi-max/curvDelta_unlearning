@@ -1,0 +1,16 @@
+model_args:
+  pretrained_model_name_or_path: "Qwen/Qwen3-4B-Instruct-2507"
+  attn_implementation: 'flash_attention_2'
+  torch_dtype: bfloat16
+  trust_remote_code: true
+tokenizer_args:
+  pretrained_model_name_or_path: "Qwen/Qwen3-4B-Instruct-2507"
+  trust_remote_code: true
+template_args:
+  apply_chat_template: true
+  system_prompt: "You are a helpful assistant."
+  system_prompt_with_special_tokens: "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+  user_start_tag: "<|im_start|>user\n"
+  user_end_tag: "<|im_end|>\n"
+  asst_start_tag: "<|im_start|>assistant\n"
+  asst_end_tag: "<|im_end|>\n"

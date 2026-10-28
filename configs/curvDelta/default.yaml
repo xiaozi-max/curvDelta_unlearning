@@ -1,0 +1,13 @@
+# @package trainer.method_args
+curvDelta_configs:
+  cache_mode: static          # static | refresh
+  energy_ratio: 0.9
+  num_chunks: 1               # 1 = all modules in one pass; >1 = chunked collection
+  update_interval: 1
+  update_unit: epochs
+  update_rule: replace        # replace | ema
+  ema_decay: 0.9
+  retain_loss_type: NLL
+  fisher_sample_seed: 0
+  fisher_temperature: 1.0
+  collection_batch_size: 1

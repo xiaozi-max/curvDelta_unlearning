@@ -18,7 +18,7 @@ def main(cfg: DictConfig):
     model_cfg = cfg.model
     template_args = model_cfg.template_args
     assert model_cfg is not None, "Invalid model yaml passed in train config."
-    model, tokenizer = get_model(model_cfg)
+    model, tokenizer = get_model(model_cfg, peft_cfg=cfg.get("peft", None), is_trainable=True)
 
     # Load Dataset
     data_cfg = cfg.data
@@ -57,6 +57,10 @@ def main(cfg: DictConfig):
     )
 
     if trainer_args.do_train:
+        if hasattr(trainer, "bootstrap_curvature"):
+            trainer.bootstrap_curvature()
+        if hasattr(trainer, "bootstrap_crispedit"):
+            trainer.bootstrap_crispedit()
         trainer.train()
         trainer.save_state()
         trainer.save_model(trainer_args.output_dir)

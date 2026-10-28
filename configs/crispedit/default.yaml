@@ -1,0 +1,12 @@
+# @package trainer.method_args
+crispedit_configs:
+  layers: []                 # empty = all transformer layers
+  energy_threshold: 0.9
+  retain_n_samples: 256
+  retain_factor_dtype: float32
+  collection_batch_size: 1
+  num_chunks: 8
+  weight_decay: 0.01
+  offload_optimizer_state: true   # keep fp32 AdamW m/v on CPU (paged in step()) to cut VRAM
+  refresh_on_weight_change: false
+  weight_change_threshold: 0.1

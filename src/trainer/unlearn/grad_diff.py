@@ -14,7 +14,17 @@ class GradDiff(UnlearnTrainer):
             self.ref_model = self._prepare_ref_model(self.model)
 
     def _prepare_ref_model(self, model):
-        ref_model = copy.deepcopy(model).to(self.accelerator.device)
+        if getattr(self, "_ref_model_path", None) is not None:
+            from transformers import AutoModelForCausalLM
+
+            # VILA residualizes the base; reference losses use the original checkpoint.
+            ref_model = AutoModelForCausalLM.from_pretrained(
+                self._ref_model_path, torch_dtype=next(model.parameters()).dtype
+            )
+        else:
+            ref_model = copy.deepcopy(model)
+        ref_model = ref_model.to(self.accelerator.device)
+        ref_model.requires_grad_(False)
         ref_model.eval()
         if self.is_deepspeed_enabled:
             ref_model = self._prepare_deepspeed(ref_model)
