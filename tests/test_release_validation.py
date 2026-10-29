@@ -23,6 +23,7 @@ EXPECTED_SCRIPTS = [
         "tofu-3b.sh", "tofu-8b.sh", "tofu-qwen3-4b.sh", "muse-books.sh"
     )),
     "scripts/prepare_vila_init.py",
+    "scripts/experiments/26-05-02-tofu-fft-lora-vila-baselines.sh",
     "scripts/experiments/26-06-08-qwen3-4b-tofu-finetune.sh",
     "scripts/experiments/26-06-08-qwen3-4b-tofu-npo-baselines.sh",
     "scripts/experiments/26-09-06-muse-books-crispedit-trainers-lr-sweep.sh",
@@ -43,11 +44,11 @@ class ReleaseValidation(unittest.TestCase):
             self.assertFalse((ROOT / removed).exists(), removed)
 
     def test_qwen_finetuning_uses_5e_5(self):
-        text = (ROOT / EXPECTED_SCRIPTS[-3]).read_text(encoding="utf-8")
+        text = (ROOT / "scripts/experiments/26-06-08-qwen3-4b-tofu-finetune.sh").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?:finetune_lr|learning_rate)=['\"]?5e-5")
 
     def test_qwen_npo_baselines_cover_fft_lora_vila(self):
-        text = (ROOT / EXPECTED_SCRIPTS[-2]).read_text(encoding="utf-8")
+        text = (ROOT / "scripts/experiments/26-06-08-qwen3-4b-tofu-npo-baselines.sh").read_text(encoding="utf-8")
         self.assertRegex(text, r"for adapt_tag in fft lora vila")
         self.assertIn("trainer=NPO", text)
         for value in (
@@ -68,7 +69,7 @@ class ReleaseValidation(unittest.TestCase):
         )
 
     def test_muse_crispedit_has_paper_trainer_settings(self):
-        text = (ROOT / EXPECTED_SCRIPTS[-1]).read_text(encoding="utf-8")
+        text = (ROOT / "scripts/experiments/26-09-06-muse-books-crispedit-trainers-lr-sweep.sh").read_text(encoding="utf-8")
         for value in (
             "data_split=Books",
             "num_train_epochs=5",
@@ -80,6 +81,29 @@ class ReleaseValidation(unittest.TestCase):
         ):
             self.assertIn(value, text)
         self.assertNotRegex(text.lower(), r"muse[-_ ]news")
+
+    def test_download_cli_and_optional_muse_builder_are_books_only(self):
+        download = (ROOT / "common_utils/download_cli.sh").read_text(encoding="utf-8")
+        for repo_id in (
+            "open-unlearning/tofu_Llama-3.1-8B-Instruct_full",
+            "open-unlearning/tofu_Llama-3.1-8B-Instruct_retain90",
+            "open-unlearning/tofu_Llama-3.1-8B-Instruct_retain95",
+            "muse-bench/MUSE-books_target",
+            "muse-bench/MUSE-books_retrain",
+            "locuslab/TOFU",
+            "muse-bench/MUSE-Books",
+        ):
+            self.assertIn(repo_id, download)
+        self.assertNotRegex(download, r"HF_TOKEN=['\"]hf_")
+
+        muse = (ROOT / "scripts/muse_unlearn.sh").read_text(encoding="utf-8")
+        self.assertIn("data_split=Books", muse)
+        self.assertNotRegex(muse.lower(), r"news|scalability|sustainability")
+
+    def test_tofu_baseline_uses_unbalanced_vila(self):
+        text = (ROOT / "scripts/experiments/26-05-02-tofu-fft-lora-vila-baselines.sh").read_text(encoding="utf-8")
+        self.assertIn("lora_init.rebalance=false", text)
+        self.assertNotIn("lora_init.rebalance=true", text)
 
     def test_curvlora_and_curvdelta_public_names_and_parameters(self):
         curvlora = "\n".join(
@@ -123,6 +147,14 @@ class ReleaseValidation(unittest.TestCase):
         self.assertIn("assets/overview.png", text)
         self.assertIn("Unconstrained optimization reaches low task loss", text)
         self.assertIn("For simplicity, only representative scripts are shown", text)
+        self.assertIn("## Abstract", text)
+        self.assertIn("## Data and Checkpoints", text)
+        self.assertIn("TOFU_EVAL.json", text)
+        self.assertIn("bash common_utils/download_cli.sh", text)
+        self.assertIn("## Main Unlearning Results", text)
+        self.assertIn("[OPLoRA](https://ojs.aaai.org/index.php/AAAI/article/view/40703)", text)
+        self.assertIn("[CrispEdit](https://icml.cc/virtual/2026/poster/62453)", text)
+        self.assertIn("[VILA](https://arxiv.org/abs/2508.21300)", text)
         self.assertIn("bash scripts/", text)
         self.assertTrue((ROOT / "overview.pdf").is_file())
         self.assertTrue((ROOT / "assets/overview.png").is_file())
