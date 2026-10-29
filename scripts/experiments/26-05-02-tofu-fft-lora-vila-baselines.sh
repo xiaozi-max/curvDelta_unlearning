@@ -5,7 +5,7 @@
 #
 # Baseline matrix for TOFU on Llama-3.2-3B-Instruct and Llama-3.1-8B-Instruct:
 #   Adaptation: FFT | LoRA | VILA
-#   Methods:    GradAscent | SimNPO | NPO
+#   Methods:    GradDiff | SimNPO | NPO
 #   Splits:     forget10 | forget05
 #   LR sweep:   {5e-6, 1e-5, 2e-5}
 #   Total:      2 models × 2 splits × 3 adaptations × 3 methods × 3 LRs = 108 runs
@@ -14,7 +14,7 @@
 #   FFT 3B  (any method)       → 2 GPUs, ZeRO3, per_device=4, grad_accum=4  (4×4×2=32)
 #   FFT 8B  (any method)       → 4 GPUs, ZeRO3, per_device=2, grad_accum=4  (2×4×4=32)
 #   LoRA    (any method)       → 2 GPUs, ZeRO2, per_device=4, grad_accum=4  (4×4×2=32)
-#   VILA    GradAscent         → 2 GPUs, ZeRO3, per_device=4, grad_accum=4  (4×4×2=32)
+#   VILA    GradDiff           → 2 GPUs, ZeRO3, per_device=4, grad_accum=4  (4×4×2=32)
 #   VILA    SimNPO/NPO         → 4 GPUs, ZeRO3, per_device=2, grad_accum=4  (2×4×4=32)
 #
 # Usage:
@@ -187,7 +187,7 @@ run_unlearn_and_eval() {
                 gpu_count=4
                 per_device=2   # 2×4×4=32
             fi
-            if [[ "$trainer" != "GradAscent" ]]; then
+            if [[ "$trainer" == "NPO" ]]; then
                 ref_args=(+trainer.method_args.ref_model_path="$model_path")
             fi
             ;;
@@ -217,7 +217,7 @@ run_unlearn_and_eval() {
                 peft.lora_dropout=0
                 +model.peft_model_path="$vila_dir"
             )
-            if [[ "$trainer" != "GradAscent" ]]; then
+            if [[ "$trainer" == "NPO" ]]; then
                 ref_args=(+trainer.method_args.ref_model_path="$model_path")
                 if $is_8b; then
                     gpu_count=4
@@ -310,7 +310,7 @@ run_matrix() {
     # ── Group A: FFT ──────────────────────────────────────────────────────────
     echo ""; echo "=== ${model_tag} ${split_tag} | Group A: FFT ==="
     for i in "${!lr_tags[@]}"; do
-        run_unlearn_and_eval "${prefix}_GA_fft_lr${lr_tags[$i]}"   GradAscent fft "${lr_vals[$i]}" \
+        run_unlearn_and_eval "${prefix}_GradDiff_fft_lr${lr_tags[$i]}" GradDiff fft "${lr_vals[$i]}" \
             "$model" "$model_tag" "$model_path" \
             "$forget_split" "$holdout_split" "$retain_split" "$retain_logs"
         run_unlearn_and_eval "${prefix}_SimNPO_fft_lr${lr_tags[$i]}" SimNPO fft "${lr_vals[$i]}" \
@@ -324,7 +324,7 @@ run_matrix() {
     # ── Group B: LoRA ─────────────────────────────────────────────────────────
     echo ""; echo "=== ${model_tag} ${split_tag} | Group B: LoRA r=${lora_r} ==="
     for i in "${!lr_tags[@]}"; do
-        run_unlearn_and_eval "${prefix}_GA_lora_lr${lr_tags[$i]}"   GradAscent lora "${lr_vals[$i]}" \
+        run_unlearn_and_eval "${prefix}_GradDiff_lora_lr${lr_tags[$i]}" GradDiff lora "${lr_vals[$i]}" \
             "$model" "$model_tag" "$model_path" \
             "$forget_split" "$holdout_split" "$retain_split" "$retain_logs"
         run_unlearn_and_eval "${prefix}_SimNPO_lora_lr${lr_tags[$i]}" SimNPO lora "${lr_vals[$i]}" \
@@ -338,7 +338,7 @@ run_matrix() {
     # ── Group C: VILA ─────────────────────────────────────────────────────────
     echo ""; echo "=== ${model_tag} ${split_tag} | Group C: VILA r=${lora_r} ==="
     for i in "${!lr_tags[@]}"; do
-        run_unlearn_and_eval "${prefix}_GA_vila_lr${lr_tags[$i]}"   GradAscent vila "${lr_vals[$i]}" \
+        run_unlearn_and_eval "${prefix}_GradDiff_vila_lr${lr_tags[$i]}" GradDiff vila "${lr_vals[$i]}" \
             "$model" "$model_tag" "$model_path" \
             "$forget_split" "$holdout_split" "$retain_split" "$retain_logs"
         run_unlearn_and_eval "${prefix}_SimNPO_vila_lr${lr_tags[$i]}" SimNPO vila "${lr_vals[$i]}" \

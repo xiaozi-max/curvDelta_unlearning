@@ -8,7 +8,7 @@ data_split=Books
 model=Llama-2-7b-hf
 model_path="${ROOT_DIR}/models/muse-bench/MUSE-Books_target"
 retain_logs="saves/eval/muse_${model}_${data_split}_retrain/MUSE_EVAL.json"
-trainers=(GradAscent GradDiff NPO SimNPO)
+trainers=(GradDiff NPO SimNPO)
 
 grab_gpus 2 40000
 for trainer in "${trainers[@]}"; do

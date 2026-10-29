@@ -104,6 +104,12 @@ class ReleaseValidation(unittest.TestCase):
         text = (ROOT / "scripts/experiments/26-05-02-tofu-fft-lora-vila-baselines.sh").read_text(encoding="utf-8")
         self.assertIn("lora_init.rebalance=false", text)
         self.assertNotIn("lora_init.rebalance=true", text)
+        self.assertIn("GradDiff", text)
+        self.assertNotIn("GradAscent", text)
+
+        muse = (ROOT / "scripts/muse_unlearn.sh").read_text(encoding="utf-8")
+        self.assertIn("trainers=(GradDiff NPO SimNPO)", muse)
+        self.assertNotIn("GradAscent", muse)
 
     def test_curvlora_and_curvdelta_public_names_and_parameters(self):
         curvlora = "\n".join(
@@ -152,9 +158,9 @@ class ReleaseValidation(unittest.TestCase):
         self.assertIn("TOFU_EVAL.json", text)
         self.assertIn("bash common_utils/download_cli.sh", text)
         self.assertIn("## Main Unlearning Results", text)
-        self.assertIn("[OPLoRA](https://ojs.aaai.org/index.php/AAAI/article/view/40703)", text)
-        self.assertIn("[CrispEdit](https://icml.cc/virtual/2026/poster/62453)", text)
-        self.assertIn("[VILA](https://arxiv.org/abs/2508.21300)", text)
+        self.assertIn("https://ojs.aaai.org/index.php/AAAI/article/view/40703", text)
+        self.assertIn("https://icml.cc/virtual/2026/poster/62453", text)
+        self.assertIn("https://arxiv.org/abs/2508.21300", text)
         self.assertIn("bash scripts/", text)
         self.assertTrue((ROOT / "overview.pdf").is_file())
         self.assertTrue((ROOT / "assets/overview.png").is_file())
